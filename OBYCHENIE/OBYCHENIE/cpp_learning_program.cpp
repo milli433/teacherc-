@@ -18,11 +18,125 @@
 #include <set>
 #include <memory>
 #include <functional>
+#include <thread>
+#include <chrono>
+#include <atomic>
+#include <random>
 #ifdef _WIN32
 #include <windows.h>
+#include <tlhelp32.h>
 #endif
 
 using namespace std;
+
+// ============================================================
+// STUDY ENFORCER GLOBALS
+// ============================================================
+
+atomic<bool> g_enforcerActive(false);
+atomic<int> g_activeMinutes(0);
+atomic<int> g_lessonsCompleted(0);
+atomic<time_t> g_lastActivityTime(0);
+time_t g_sessionStart = 0;
+int ENFORCER_REQUIRED_MINUTES = 60;
+int ENFORCER_REQUIRED_LESSONS = 2;
+
+vector<string> BLOCKED_PROCESSES = {
+    "GTA5.exe", "GTA6.exe", "GTAV.exe", "FiveM.exe",
+    "csgo.exe", "cs2.exe", "valorant.exe", "VALORANT-Win64-Shipping.exe",
+    "FortniteClient-Win64-Shipping.exe",
+    "RobloxPlayerBeta.exe", "RobloxPlayer.exe",
+    "Minecraft.exe", "javaw.exe", "dota2.exe",
+    "RocketLeague.exe", "Overwatch.exe",
+    "LeagueofLegends.exe", "League of Legends.exe",
+    "PUBG.exe", "TslGame.exe", "ApexLegends.exe", "r5apex.exe",
+    "GenshinImpact.exe", "YuanShen.exe", "Warframe.exe",
+    "Discord.exe", "Telegram.exe",
+    "steam.exe", "steamwebhelper.exe",
+    "EpicGamesLauncher.exe", "Battle.net.exe",
+    "Origin.exe", "EADesktop.exe"
+};
+
+#ifdef _WIN32
+bool killProcess(const string& processName) {
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) return false;
+    PROCESSENTRY32 entry;
+    entry.dwSize = sizeof(PROCESSENTRY32);
+    bool killed = false;
+    if (Process32First(snapshot, &entry)) {
+        do {
+            string name = entry.szExeFile;
+            string nameLower = name;
+            string targetLower = processName;
+            transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+            transform(targetLower.begin(), targetLower.end(), targetLower.begin(), ::tolower);
+            if (nameLower == targetLower) {
+                HANDLE proc = OpenProcess(PROCESS_TERMINATE, FALSE, entry.th32ProcessID);
+                if (proc) { TerminateProcess(proc, 0); CloseHandle(proc); killed = true; }
+            }
+        } while (Process32Next(snapshot, &entry));
+    }
+    CloseHandle(snapshot);
+    return killed;
+}
+#endif
+
+void enforcerBlockGames() {
+    while (g_enforcerActive) {
+#ifdef _WIN32
+        for (auto& proc : BLOCKED_PROCESSES) {
+            if (killProcess(proc)) {
+                Beep(800, 300);
+            }
+        }
+#endif
+        this_thread::sleep_for(chrono::seconds(10));
+    }
+}
+
+void enforcerTimeTracker() {
+    while (g_enforcerActive) {
+        time_t now = time(nullptr);
+        time_t lastAct = g_lastActivityTime.load();
+        if (lastAct > 0 && difftime(now, lastAct) < 120.0) {
+            int elapsed = (int)difftime(now, g_sessionStart);
+            g_activeMinutes.store(elapsed / 60);
+        }
+        this_thread::sleep_for(chrono::seconds(5));
+    }
+}
+
+string enforcerStatus() {
+    if (!g_enforcerActive) return "";
+    int mins = g_activeMinutes.load();
+    int lessons = g_lessonsCompleted.load();
+    int remMins = max(0, ENFORCER_REQUIRED_MINUTES - mins);
+    int remLessons = max(0, ENFORCER_REQUIRED_LESSONS - lessons);
+
+    string status = "\n";
+    status += "  [ENFORCER] Режим обучения АКТИВЕН!\n";
+    status += "  Время: " + to_string(mins) + "/" + to_string(ENFORCER_REQUIRED_MINUTES) + " мин";
+    if (mins >= ENFORCER_REQUIRED_MINUTES) status += " [OK]";
+    status += "\n";
+    status += "  Уроки: " + to_string(lessons) + "/" + to_string(ENFORCER_REQUIRED_LESSONS);
+    if (lessons >= ENFORCER_REQUIRED_LESSONS) status += " [OK]";
+    status += "\n";
+
+    if (remMins > 0 || remLessons > 0) {
+        status += "  Осталось: " + to_string(remMins) + " мин, " + to_string(remLessons) + " уроков\n";
+        status += "  Игры ЗАБЛОКИРОВАНЫ до выполнения!\n";
+    } else {
+        status += "  [OK] Можешь выходить! Игры разблокированы.\n";
+    }
+    return status;
+}
+
+bool enforcerCanExit() {
+    if (!g_enforcerActive) return true;
+    return g_activeMinutes.load() >= ENFORCER_REQUIRED_MINUTES &&
+           g_lessonsCompleted.load() >= ENFORCER_REQUIRED_LESSONS;
+}
 
 // ============================================================
 // DATA STRUCTURES
@@ -3959,6 +4073,7 @@ int runQuiz(const vector<Question>& questions, const string& quizKey, Progress& 
             cout << "Введите число от 1 до " << q.options.size() << ": ";
         }
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        if (g_enforcerActive) g_lastActivityTime.store(time(nullptr));
         if (ans - 1 == q.correctAnswer) {
             cout << "\n[OK] Правильно!\n";
             correct++;
@@ -3975,6 +4090,10 @@ int runQuiz(const vector<Question>& questions, const string& quizKey, Progress& 
     cout << "[DONE] Тест завершён! Правильно: " << correct << "/" << questions.size()
         << " (" << score << "%)\n";
     progress.quizScores[quizKey] = score;
+    if (g_enforcerActive) {
+        g_lessonsCompleted++;
+        g_lastActivityTime.store(time(nullptr));
+    }
     pause();
     return score;
 }
@@ -4023,6 +4142,10 @@ void runFinalTask(const Topic& topic, Progress& progress) {
 
     string taskKey = "final_" + topic.name;
     progress.completedLessons[taskKey] = true;
+    if (g_enforcerActive) {
+        g_lessonsCompleted++;
+        g_lastActivityTime.store(time(nullptr));
+    }
     pause();
 }
 
@@ -4237,6 +4360,7 @@ void askGlobalAI() {
 
         cout << "\nНажми Enter чтобы задать следующий вопрос...";
         cin.get();
+        if (g_enforcerActive) g_lastActivityTime.store(time(nullptr));
     }
 }
 
@@ -4263,6 +4387,157 @@ void showWelcome(const Progress& p) {
 }
 
 // ============================================================
+// STUDY ENFORCER MENU
+// ============================================================
+
+void startEnforcer() {
+    clearScreen();
+    printLine('*');
+    printCentered("STUDY ENFORCER v1.0");
+    printCentered("Режим принудительного обучения!");
+    printLine('*');
+
+    bool enforcerMenu = true;
+    while (enforcerMenu) {
+        cout << "\n  1. Включить Enforcer\n";
+        cout << "  2. Настройки (процессы, время, уроки)\n";
+        cout << "  0. Назад\n";
+        printLine('-');
+        cout << "Выбор: ";
+        int menuChoice = 0;
+        while (!(cin >> menuChoice)) { cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n'); }
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+        if (menuChoice == 0) {
+            return;
+        }
+        else if (menuChoice == 2) {
+            // Settings sub-menu
+            bool settingsRunning = true;
+            while (settingsRunning) {
+                clearScreen();
+                printLine('=');
+                printCentered("НАСТРОЙКИ ENFORCER");
+                printLine('=');
+                cout << "  1. Добавить процесс в список блокировки\n";
+                cout << "  2. Изменить требуемое время (сейчас: " << ENFORCER_REQUIRED_MINUTES << " мин)\n";
+                cout << "  3. Изменить количество уроков (сейчас: " << ENFORCER_REQUIRED_LESSONS << ")\n";
+                cout << "  4. Показать список заблокированных процессов\n";
+                cout << "  0. Назад\n";
+                printLine('-');
+                cout << "Выбор: ";
+                int sc = 0;
+                while (!(cin >> sc)) { cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n'); }
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+                if (sc == 0) {
+                    settingsRunning = false;
+                }
+                else if (sc == 1) {
+                    cout << "Введите имя .exe файла (например game.exe): ";
+                    string exeName;
+                    getline(cin, exeName);
+                    if (!exeName.empty()) {
+                        BLOCKED_PROCESSES.push_back(exeName);
+                        cout << "  [OK] Добавлено: " << exeName << "\n";
+                        pause();
+                    }
+                }
+                else if (sc == 2) {
+                    cout << "Введите требуемое время (30-120 мин): ";
+                    int mins = 0;
+                    while (!(cin >> mins) || mins < 30 || mins > 120) {
+                        cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                        cout << "Введите число от 30 до 120: ";
+                    }
+                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                    ENFORCER_REQUIRED_MINUTES = mins;
+                    cout << "  [OK] Установлено: " << mins << " минут\n";
+                    pause();
+                }
+                else if (sc == 3) {
+                    cout << "Введите количество уроков (1-5): ";
+                    int lsn = 0;
+                    while (!(cin >> lsn) || lsn < 1 || lsn > 5) {
+                        cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                        cout << "Введите число от 1 до 5: ";
+                    }
+                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                    ENFORCER_REQUIRED_LESSONS = lsn;
+                    cout << "  [OK] Установлено: " << lsn << " уроков\n";
+                    pause();
+                }
+                else if (sc == 4) {
+                    clearScreen();
+                    printLine('=');
+                    printCentered("ЗАБЛОКИРОВАННЫЕ ПРОЦЕССЫ");
+                    printLine('=');
+                    for (int i = 0; i < (int)BLOCKED_PROCESSES.size(); i++) {
+                        cout << "  " << (i + 1) << ". " << BLOCKED_PROCESSES[i] << "\n";
+                    }
+                    pause();
+                }
+                else {
+                    cout << "[!!!] Неверный выбор\n";
+                    pause();
+                }
+            }
+        }
+        else if (menuChoice == 1) {
+            clearScreen();
+            printLine('*');
+            printCentered("STUDY ENFORCER v1.0");
+            printCentered("Режим принудительного обучения!");
+            printLine('*');
+            cout << "\n  Правила:\n";
+            cout << "  1. Тебе нужно проучиться минимум " << ENFORCER_REQUIRED_MINUTES << " минут\n";
+            cout << "  2. Пройти минимум " << ENFORCER_REQUIRED_LESSONS << " урока/теста\n";
+            cout << "  3. Игры будут АВТОМАТИЧЕСКИ закрываться\n";
+            cout << "  4. Пока не выполнишь — не выйдешь!\n\n";
+            cout << "  Блокируемые программы:\n";
+            cout << "  Steam, Discord, Telegram, CS2, Valorant, Fortnite,\n";
+            cout << "  Roblox, Minecraft, Dota 2, GTA, Apex и др.\n\n";
+            cout << "  Включить? (1 = Да, 0 = Нет): ";
+            int choice2;
+            while (!(cin >> choice2)) { cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n'); }
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            if (choice2 != 1) {
+                enforcerMenu = false;
+                return;
+            }
+
+            g_enforcerActive = true;
+            g_sessionStart = time(nullptr);
+            g_lastActivityTime.store(g_sessionStart);
+            g_activeMinutes = 0;
+            g_lessonsCompleted = 0;
+
+            thread blocker(enforcerBlockGames);
+            blocker.detach();
+            thread tracker(enforcerTimeTracker);
+            tracker.detach();
+
+#ifdef _WIN32
+            HWND hwnd = GetConsoleWindow();
+            if (hwnd) {
+                HMENU hmenu = GetSystemMenu(hwnd, FALSE);
+                if (hmenu) DeleteMenu(hmenu, SC_CLOSE, MF_BYCOMMAND);
+            }
+#endif
+
+            cout << "\n  [ENFORCER] АКТИВИРОВАН! Игры заблокированы.\n";
+            cout << "  Теперь учись — проходи темы, тесты и задания!\n";
+            pause();
+            enforcerMenu = false;
+        }
+        else {
+            cout << "[!!!] Неверный выбор\n";
+            pause();
+        }
+    }
+}
+
+// ============================================================
 // MAIN MENU
 // ============================================================
 
@@ -4270,16 +4545,37 @@ void showMainMenu(const vector<Topic>& topics, Progress& progress) {
     bool running = true;
     while (running) {
         showWelcome(progress);
+        cout << enforcerStatus();
         cout << "  1. Список тем (" << topics.size() << " тем)\n"
             << "  2. Статистика прогресса\n"
             << "  3. Задать вопрос AI по C++\n"
-            << "  4. Выход\n";
+            << "  4. Study Enforcer\n"
+            << "  5. Выход\n";
         printLine('-');
         cout << "Выбор: ";
 
         int choice = 0;
         while (!(cin >> choice)) { cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n'); }
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+        // Check if enforcer conditions just met — show celebration
+        if (g_enforcerActive && enforcerCanExit()) {
+            if (g_enforcerActive.exchange(false)) {
+                clearScreen();
+                printLine('*');
+                printCentered("[OK] ПОЗДРАВЛЯЮ!");
+                printCentered("Ты честно отучился!");
+                printLine('*');
+                cout << "\n  Время: " << g_activeMinutes.load() << " минут\n";
+                cout << "  Уроков: " << g_lessonsCompleted.load() << "\n";
+                cout << "\n  Теперь можешь отдыхать! Игры разблокированы.\n";
+#ifdef _WIN32
+                HWND hwnd2 = GetConsoleWindow();
+                if (hwnd2) GetSystemMenu(hwnd2, TRUE);
+#endif
+                pause();
+            }
+        }
 
         switch (choice) {
         case 1: {
@@ -4331,10 +4627,26 @@ void showMainMenu(const vector<Topic>& topics, Progress& progress) {
             askGlobalAI();
             break;
         case 4:
-            running = false;
+            if (!g_enforcerActive) {
+                startEnforcer();
+            } else {
+                cout << "\n  [ENFORCER] уже активен!\n";
+                cout << enforcerStatus();
+                pause();
+            }
+            break;
+        case 5:
+            if (!enforcerCanExit()) {
+                cout << "\n  [X] НЕЛЬЗЯ ВЫЙТИ!\n";
+                cout << enforcerStatus();
+                cout << "  Продолжай учиться!\n";
+                pause();
+            } else {
+                running = false;
+            }
             break;
         default:
-            cout << "[!!!] Неверный выбор. Введите 1-4.\n";
+            cout << "[!!!] Неверный выбор. Введите 1-5.\n";
             pause();
         }
     }
