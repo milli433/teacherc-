@@ -10,6 +10,7 @@
 #include <ctime>
 #include <algorithm>
 #include <iomanip>
+#include <limits>
 #include <map>
 #include <set>
 #include <memory>
@@ -56,7 +57,6 @@ struct Progress {
     int totalLessons;
     int streak;
     time_t lastVisit;
-    bool operator==(const Progress&) const { return false; }
 };
 
 // ============================================================
@@ -86,7 +86,7 @@ void clearScreen() {
 
 void pause() {
     cout << "\nНажмите Enter для продолжения...";
-    cin.ignore(10000, '\n');
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
     cin.get();
 }
 
@@ -196,7 +196,7 @@ string callAI(const string& prompt, const string& context = "") {
 
     {
         ofstream req("_ai_req.json");
-        if (!req) return "[!!!] Ошибка: не удалось создать временный файл.";
+        if (!req) return "[!!!] Ошибка: не удалось создать временный файл. Проверьте права доступа к папке.";
         req << json;
         req.close();
     }
@@ -3919,10 +3919,10 @@ int runQuiz(const vector<Question>& questions, const string& quizKey, Progress& 
         int ans = 0;
         while (!(cin >> ans) || ans < 1 || ans > (int)q.options.size()) {
             cin.clear();
-            cin.ignore(10000, '\n');
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
             cout << "Введите число от 1 до " << q.options.size() << ": ";
         }
-        cin.ignore(10000, '\n');
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
         if (ans - 1 == q.correctAnswer) {
             cout << "\n[OK] Правильно!\n";
             correct++;
@@ -4009,9 +4009,9 @@ void showLesson(const Lesson& lesson, const string& lessonKey, const Topic& topi
         cout << "Выбор: ";
         int choice = 0;
         while (!(cin >> choice)) {
-            cin.clear(); cin.ignore(10000, '\n');
+            cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n');
         }
-        cin.ignore(10000, '\n');
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
         switch (choice) {
         case 1:
@@ -4088,8 +4088,8 @@ void showTopicMenu(const Topic& topic, Progress& progress) {
         cout << "Выбор: ";
 
         int choice = 0;
-        while (!(cin >> choice)) { cin.clear(); cin.ignore(10000, '\n'); }
-        cin.ignore(10000, '\n');
+        while (!(cin >> choice)) { cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n'); }
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
         if (choice == 0) {
             running = false;
@@ -4226,8 +4226,8 @@ void showMainMenu(const vector<Topic>& topics, Progress& progress) {
         cout << "Выбор: ";
 
         int choice = 0;
-        while (!(cin >> choice)) { cin.clear(); cin.ignore(10000, '\n'); }
-        cin.ignore(10000, '\n');
+        while (!(cin >> choice)) { cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n'); }
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
         switch (choice) {
         case 1: {
@@ -4256,8 +4256,8 @@ void showMainMenu(const vector<Topic>& topics, Progress& progress) {
                 printLine('-');
                 cout << "Выбор темы: ";
                 int tc = 0;
-                while (!(cin >> tc)) { cin.clear(); cin.ignore(10000, '\n'); }
-                cin.ignore(10000, '\n');
+                while (!(cin >> tc)) { cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n'); }
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
                 if (tc == 0) {
                     topicRunning = false;
                 } else if (tc >= 1 && tc <= (int)topics.size()) {
