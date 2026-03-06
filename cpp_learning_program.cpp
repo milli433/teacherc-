@@ -1608,7 +1608,7 @@ using namespace std;
 
 int main() {
     int n;
-    cout << "Сколько чисел введёте? ";
+    cout << "Сколько чисел введёшь? ";
     cin >> n;
 
     int sum = 0;
