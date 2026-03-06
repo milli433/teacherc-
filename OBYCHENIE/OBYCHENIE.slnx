@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="OBYCHENIE/OBYCHENIE.vcxproj" Id="190920f8-3c86-4c91-b59d-10fc1f04368e" />
+</Solution>
