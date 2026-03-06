@@ -86,7 +86,6 @@ void clearScreen() {
 
 void pause() {
     cout << "\nНажмите Enter для продолжения...";
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
     cin.get();
 }
 
@@ -3965,7 +3964,9 @@ void runFinalTask(const Topic& topic, Progress& progress) {
     string line;
     while (true) {
         getline(cin, line);
-        if (line == "ГОТОВО" || line == "GOTOVO") break;
+        // Strip trailing whitespace (handles \r\n from Windows, spaces, tabs, etc.)
+        while (!line.empty() && isspace((unsigned char)line.back())) line.pop_back();
+        if (line == "ГОТОВО" || line == "готово" || line == "GOTOVO" || line == "gotovo") break;
         code += line + "\n";
     }
 
