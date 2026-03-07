@@ -54,7 +54,7 @@
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)imgui;$(ProjectDir)imgui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)OBYCHENIE;$(ProjectDir)OBYCHENIE\imgui;$(ProjectDir)OBYCHENIE\imgui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -73,7 +73,7 @@
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)imgui;$(ProjectDir)imgui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)OBYCHENIE;$(ProjectDir)OBYCHENIE\imgui;$(ProjectDir)OBYCHENIE\imgui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -87,27 +87,27 @@
   <!-- Source files -->
   <ItemGroup>
     <!-- Main GUI application (includes cpp_learning_program.cpp via #include with IMGUI_MODE) -->
-    <ClCompile Include="imgui_main.cpp" />
+    <ClCompile Include="OBYCHENIE\imgui_main.cpp" />
 
     <!-- ImGui core -->
-    <ClCompile Include="imgui\imgui.cpp" />
-    <ClCompile Include="imgui\imgui_draw.cpp" />
-    <ClCompile Include="imgui\imgui_tables.cpp" />
-    <ClCompile Include="imgui\imgui_widgets.cpp" />
+    <ClCompile Include="OBYCHENIE\imgui\imgui.cpp" />
+    <ClCompile Include="OBYCHENIE\imgui\imgui_draw.cpp" />
+    <ClCompile Include="OBYCHENIE\imgui\imgui_tables.cpp" />
+    <ClCompile Include="OBYCHENIE\imgui\imgui_widgets.cpp" />
 
     <!-- ImGui backends: Win32 + DirectX11 -->
-    <ClCompile Include="imgui\backends\imgui_impl_win32.cpp" />
-    <ClCompile Include="imgui\backends\imgui_impl_dx11.cpp" />
+    <ClCompile Include="OBYCHENIE\imgui\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="OBYCHENIE\imgui\backends\imgui_impl_dx11.cpp" />
   </ItemGroup>
 
   <!-- Header files -->
   <ItemGroup>
-    <ClInclude Include="imgui\imgui.h" />
-    <ClInclude Include="imgui\imgui_internal.h" />
-    <ClInclude Include="imgui\backends\imgui_impl_win32.h" />
-    <ClInclude Include="imgui\backends\imgui_impl_dx11.h" />
+    <ClInclude Include="OBYCHENIE\imgui\imgui.h" />
+    <ClInclude Include="OBYCHENIE\imgui\imgui_internal.h" />
+    <ClInclude Include="OBYCHENIE\imgui\backends\imgui_impl_win32.h" />
+    <ClInclude Include="OBYCHENIE\imgui\backends\imgui_impl_dx11.h" />
     <!-- Original data/logic (included via imgui_main.cpp with IMGUI_MODE guard) -->
-    <ClInclude Include="cpp_learning_program.cpp">
+    <ClInclude Include="OBYCHENIE\cpp_learning_program.cpp">
       <FileType>Document</FileType>
     </ClInclude>
   </ItemGroup>

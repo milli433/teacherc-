@@ -367,7 +367,7 @@ static vector<ColoredToken> TokenizeCppLine(const string& line) {
 static void RenderCode(const string& code) {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, C::CODE_BG);
     float avail = ImGui::GetContentRegionAvail().x;
-    ImGui::BeginChild("##code_block", {avail, 0.0f}, ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Border);
+    ImGui::BeginChild("##code_block", {avail, 0.0f}, ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders);
     ImGui::PushStyleColor(ImGuiCol_Text, C::TEXT);
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f);
 
@@ -402,7 +402,7 @@ static void RenderTheory(const string& theory) {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, C::BG2);
     float avail = ImGui::GetContentRegionAvail().x;
     // Use a scrollable child that fills available height
-    ImGui::BeginChild("##theory", {avail, 0.0f}, ImGuiChildFlags_Border);
+    ImGui::BeginChild("##theory", {avail, 0.0f}, ImGuiChildFlags_Borders);
     ImGui::SetCursorPos({ImGui::GetCursorPosX()+8, ImGui::GetCursorPosY()+6});
 
     istringstream ss(theory);
@@ -628,7 +628,7 @@ static void RenderAIPanel(const string& contextHint = "") {
         ImGui::PushStyleColor(ImGuiCol_ChildBg, C::BG3);
         float h = ImGui::GetContentRegionAvail().y - 100.0f;
         if (h < 80.0f) h = 80.0f;
-        ImGui::BeginChild("##ai_response", {0, h}, ImGuiChildFlags_Border);
+        ImGui::BeginChild("##ai_response", {0, h}, ImGuiChildFlags_Borders);
 
         if (g_app.aiLoading.load()) {
             ImGui::PushStyleColor(ImGuiCol_Text, C::ACCENT);
@@ -815,7 +815,7 @@ static void RenderHome() {
 
     // Card: Progress
     ImGui::PushStyleColor(ImGuiCol_ChildBg, C::BG3);
-    ImGui::BeginChild("##card_progress", {col3W, 100.0f}, ImGuiChildFlags_Border);
+    ImGui::BeginChild("##card_progress", {col3W, 100.0f}, ImGuiChildFlags_Borders);
     ImGui::Dummy({0, 8}); ImGui::SetCursorPosX(ImGui::GetCursorPosX()+8);
     ImGui::PushStyleColor(ImGuiCol_Text, C::ACCENT); ImGui::TextUnformatted("Прогресс"); ImGui::PopStyleColor();
     ImGui::SetCursorPosX(ImGui::GetCursorPosX()+8);
@@ -832,7 +832,7 @@ static void RenderHome() {
 
     // Card: Streak
     ImGui::PushStyleColor(ImGuiCol_ChildBg, C::BG3);
-    ImGui::BeginChild("##card_streak", {col3W, 100.0f}, ImGuiChildFlags_Border);
+    ImGui::BeginChild("##card_streak", {col3W, 100.0f}, ImGuiChildFlags_Borders);
     ImGui::Dummy({0, 8}); ImGui::SetCursorPosX(ImGui::GetCursorPosX()+8);
     ImGui::PushStyleColor(ImGuiCol_Text, C::STREAK); ImGui::TextUnformatted("Серия дней"); ImGui::PopStyleColor();
     ImGui::SetCursorPosX(ImGui::GetCursorPosX()+8);
@@ -849,7 +849,7 @@ static void RenderHome() {
 
     // Card: Topics
     ImGui::PushStyleColor(ImGuiCol_ChildBg, C::BG3);
-    ImGui::BeginChild("##card_topics", {col3W, 100.0f}, ImGuiChildFlags_Border);
+    ImGui::BeginChild("##card_topics", {col3W, 100.0f}, ImGuiChildFlags_Borders);
     ImGui::Dummy({0, 8}); ImGui::SetCursorPosX(ImGui::GetCursorPosX()+8);
     ImGui::PushStyleColor(ImGuiCol_Text, C::PURPLE); ImGui::TextUnformatted("Темы"); ImGui::PopStyleColor();
     ImGui::SetCursorPosX(ImGui::GetCursorPosX()+8);
@@ -1136,7 +1136,7 @@ static void RenderLessonNav() {
     const Topic& topic = g_topics[g_app.topicIdx];
 
     ImGui::PushStyleColor(ImGuiCol_ChildBg, C::BG2);
-    ImGui::BeginChild("##lesson_nav", {180.0f, 0.0f}, ImGuiChildFlags_Border);
+    ImGui::BeginChild("##lesson_nav", {180.0f, 0.0f}, ImGuiChildFlags_Borders);
     ImGui::Dummy({0, 6});
 
     ImGui::PushStyleColor(ImGuiCol_Text, C::TEXT_DIM);
