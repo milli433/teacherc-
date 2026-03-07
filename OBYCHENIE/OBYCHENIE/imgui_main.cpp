@@ -733,7 +733,7 @@ static void RenderStats() {
                 if (g_progress.completedLessons.count(key) && g_progress.completedLessons.at(key))
                     tdone++;
             }
-            bool allDone = (tdone == (int)t.lessons.size() && tdone > 0);
+            bool allDone = isTopicComplete(t, g_progress);
 
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
@@ -980,8 +980,6 @@ static void RenderLessonView() {
     if (ImGui::BeginTabBar("##lesson_tabs")) {
         if (ImGui::BeginTabItem("  Теория  ")) {
             ImGui::Dummy({0, 4});
-            // Mark lesson as read when theory is viewed
-            g_progress.completedLessons[lessonKey] = true;
             RenderTheory(lesson.theory);
             ImGui::EndTabItem();
         }
@@ -1097,31 +1095,38 @@ static void RenderSidebar() {
 
     for (int ti = 0; ti < (int)g_topics.size(); ti++) {
         const Topic& t = g_topics[ti];
-        int tdone = 0;
-        for (int li = 0; li < (int)t.lessons.size(); li++) {
-            string key = t.name + "_" + to_string(li);
-            if (g_progress.completedLessons.count(key) && g_progress.completedLessons.at(key)) tdone++;
-        }
-        bool allDone   = (tdone == (int)t.lessons.size() && tdone > 0);
+        bool allDone   = isTopicComplete(t, g_progress);
         bool isActive  = (g_app.screen == Screen::LESSON && g_app.topicIdx == ti);
+        bool isLocked  = (ti > 0) && !isTopicComplete(g_topics[ti - 1], g_progress);
 
-        if (isActive)  ImGui::PushStyleColor(ImGuiCol_Button, C::ACCENT_DIM);
-        else            ImGui::PushStyleColor(ImGuiCol_Button, {0,0,0,0});
+        if (isLocked) {
+            ImGui::PushStyleColor(ImGuiCol_Button, {0,0,0,0});
+            ImGui::PushStyleColor(ImGuiCol_Text, C::TEXT_DIM);
+            ImGui::SetCursorPosX(4.0f);
+            string label = "  🔒 " + to_string(ti+1) + ". " + t.name;
+            ImGui::BeginDisabled();
+            ImGui::Button(label.c_str(), {g_app.sidebarW - 8.0f, 26.0f});
+            ImGui::EndDisabled();
+            ImGui::PopStyleColor(2);
+        } else {
+            if (isActive)  ImGui::PushStyleColor(ImGuiCol_Button, C::ACCENT_DIM);
+            else            ImGui::PushStyleColor(ImGuiCol_Button, {0,0,0,0});
 
-        ImVec4 textCol = allDone ? C::SUCCESS : (isActive ? C::TEXT_BRIGHT : C::TEXT);
-        ImGui::PushStyleColor(ImGuiCol_Text, textCol);
-        ImGui::SetCursorPosX(4.0f);
+            ImVec4 textCol = allDone ? C::SUCCESS : (isActive ? C::TEXT_BRIGHT : C::TEXT);
+            ImGui::PushStyleColor(ImGuiCol_Text, textCol);
+            ImGui::SetCursorPosX(4.0f);
 
-        string label = (allDone ? " ✓  " : "    ") + to_string(ti+1) + ". " + t.name;
-        if (ImGui::Button(label.c_str(), {g_app.sidebarW - 8.0f, 26.0f})) {
-            g_app.screen       = Screen::LESSON;
-            g_app.topicIdx     = ti;
-            g_app.lessonIdx    = 0;
-            g_app.lessonTab    = LessonTab::THEORY;
-            g_app.showFinalTask= false;
-            g_app.quiz         = QuizState{};
+            string label = (allDone ? " ✓  " : "    ") + to_string(ti+1) + ". " + t.name;
+            if (ImGui::Button(label.c_str(), {g_app.sidebarW - 8.0f, 26.0f})) {
+                g_app.screen       = Screen::LESSON;
+                g_app.topicIdx     = ti;
+                g_app.lessonIdx    = 0;
+                g_app.lessonTab    = LessonTab::THEORY;
+                g_app.showFinalTask= false;
+                g_app.quiz         = QuizState{};
+            }
+            ImGui::PopStyleColor(2);
         }
-        ImGui::PopStyleColor(2);
     }
 
     ImGui::EndChild();
