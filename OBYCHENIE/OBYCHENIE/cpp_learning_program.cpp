@@ -245,7 +245,9 @@ string callAI(const string& prompt, const string& context = "") {
             response.find("rate-limited") != string::npos ||
             response.find("rate limit") != string::npos) {
             if (m < (int)models.size() - 1) {
+#ifndef IMGUI_MODE
                 cout << "  [Модель " << models[m] << " занята, пробую другую...]\n";
+#endif
                 continue;  // пробуем следующую модель
             }
         }
@@ -3932,6 +3934,7 @@ int main() {
     return topics;
 }
 
+#ifndef IMGUI_MODE
 
 // ============================================================
 // QUIZ RUNNER
@@ -4375,3 +4378,5 @@ int main() {
 
     return 0;
 }
+
+#endif // IMGUI_MODE

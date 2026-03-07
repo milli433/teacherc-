@@ -4,4 +4,5 @@
     <Platform Name="x86" />
   </Configurations>
   <Project Path="OBYCHENIE/OBYCHENIE.vcxproj" Id="190920f8-3c86-4c91-b59d-10fc1f04368e" />
+  <Project Path="OBYCHENIE_GUI.vcxproj" Id="7a3f1b2c-9d4e-4c8a-b5f6-2e1d0c3a7b8e" />
 </Solution>
