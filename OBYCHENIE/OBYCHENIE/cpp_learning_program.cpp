@@ -172,6 +172,21 @@ void updateStreak(Progress& p) {
 }
 
 // ============================================================
+// TOPIC COMPLETION CHECK
+// ============================================================
+
+// Returns true only when every lesson quiz is passed AND the final task is done
+bool isTopicComplete(const Topic& t, const Progress& p) {
+    for (int li = 0; li < (int)t.lessons.size(); li++) {
+        string key = t.name + "_" + to_string(li);
+        if (!p.completedLessons.count(key) || !p.completedLessons.at(key))
+            return false;
+    }
+    string ftKey = "final_" + t.name;
+    return p.completedLessons.count(ftKey) && p.completedLessons.at(ftKey);
+}
+
+// ============================================================
 // AI ASSISTANT
 // ============================================================
 
@@ -4060,7 +4075,6 @@ void showLesson(const Lesson& lesson, const string& lessonKey, const Topic& topi
             printCentered("ТЕОРИЯ: " + lesson.title);
             printLine('=');
             cout << lesson.theory << "\n";
-            progress.completedLessons[lessonKey] = true;
             pause();
             break;
         case 2:
@@ -4073,8 +4087,11 @@ void showLesson(const Lesson& lesson, const string& lessonKey, const Topic& topi
             break;
         case 3:
             clearScreen();
-            runQuiz(lesson.quiz, lessonKey + "_quiz", progress);
-            progress.completedLessons[lessonKey] = true;
+            {
+                int score = runQuiz(lesson.quiz, lessonKey + "_quiz", progress);
+                if (score >= 70)
+                    progress.completedLessons[lessonKey] = true;
+            }
             break;
         case 4: {
             clearScreen();
@@ -4294,16 +4311,16 @@ void showMainMenu(const vector<Topic>& topics, Progress& progress) {
                 printCentered("СПИСОК ТЕМ");
                 printLine('=');
                 for (int i = 0; i < (int)topics.size(); i++) {
-                    // Count completed lessons in this topic
+                    bool locked = (i > 0) && !isTopicComplete(topics[i - 1], progress);
+                    bool done = isTopicComplete(topics[i], progress);
                     int cnt = 0;
                     for (int li = 0; li < (int)topics[i].lessons.size(); li++) {
                         string key = topics[i].name + "_" + to_string(li);
                         if (progress.completedLessons.count(key) && progress.completedLessons.at(key))
                             cnt++;
                     }
-                    bool done = (cnt == (int)topics[i].lessons.size() && cnt > 0);
                     cout << "  " << (i + 1 < 10 ? " " : "") << (i + 1) << ". "
-                        << (done ? "[OK] " : "     ")
+                        << (locked ? "[LOCK] " : (done ? "[OK]   " : "       "))
                         << topics[i].name
                         << " (" << cnt << "/" << topics[i].lessons.size() << ")\n";
                 }
@@ -4317,8 +4334,14 @@ void showMainMenu(const vector<Topic>& topics, Progress& progress) {
                     topicRunning = false;
                 }
                 else if (tc >= 1 && tc <= (int)topics.size()) {
-                    showTopicMenu(topics[tc - 1], progress);
-                    saveProgress(progress);
+                    bool locked = (tc > 1) && !isTopicComplete(topics[tc - 2], progress);
+                    if (locked) {
+                        cout << "[!!!] Эта тема заблокирована. Сначала выполни финальное задание предыдущей темы.\n";
+                        pause();
+                    } else {
+                        showTopicMenu(topics[tc - 1], progress);
+                        saveProgress(progress);
+                    }
                 }
                 else {
                     cout << "[!!!] Неверный выбор\n";
