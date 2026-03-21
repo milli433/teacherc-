@@ -18,6 +18,9 @@
 #include <set>
 #include <memory>
 #include <functional>
+#include <thread>
+#include <chrono>
+#include <atomic>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -4266,6 +4269,235 @@ void showWelcome(const Progress& p) {
 }
 
 // ============================================================
+// REMINDER SYSTEM AND AUTOSTART
+// ============================================================
+
+struct ReminderSettings {
+    bool enabled = false;
+    int intervalMinutes = 60;
+    int dailyGoalLessons = 2;
+    string reminderTime = "16:00";
+    bool autoStartEnabled = false;
+};
+
+void saveReminderSettings(const ReminderSettings& rs) {
+    ofstream f("cpp_reminder_settings.dat");
+    if (!f) return;
+    f << "enabled=" << rs.enabled << "\n";
+    f << "interval=" << rs.intervalMinutes << "\n";
+    f << "dailyGoal=" << rs.dailyGoalLessons << "\n";
+    f << "reminderTime=" << rs.reminderTime << "\n";
+    f << "autoStart=" << rs.autoStartEnabled << "\n";
+    f.close();
+}
+
+ReminderSettings loadReminderSettings() {
+    ReminderSettings rs;
+    ifstream f("cpp_reminder_settings.dat");
+    if (!f) return rs;
+    string line;
+    while (getline(f, line)) {
+        try {
+            if (line.size() > 8 && line.substr(0, 8) == "enabled=") rs.enabled = (line.substr(8) == "1");
+            else if (line.size() > 9 && line.substr(0, 9) == "interval=") rs.intervalMinutes = stoi(line.substr(9));
+            else if (line.size() > 10 && line.substr(0, 10) == "dailyGoal=") rs.dailyGoalLessons = stoi(line.substr(10));
+            else if (line.size() > 13 && line.substr(0, 13) == "reminderTime=") rs.reminderTime = line.substr(13);
+            else if (line.size() > 10 && line.substr(0, 10) == "autoStart=") rs.autoStartEnabled = (line.substr(10) == "1");
+        } catch (...) {
+            // Ignore malformed lines and keep defaults
+        }
+    }
+    f.close();
+    return rs;
+}
+
+#ifdef _WIN32
+void addToStartup() {
+    char exePath[MAX_PATH];
+    GetModuleFileNameA(NULL, exePath, MAX_PATH);
+
+    HKEY hKey;
+    LONG result = RegOpenKeyExA(HKEY_CURRENT_USER,
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        0, KEY_SET_VALUE, &hKey);
+
+    if (result == ERROR_SUCCESS) {
+        RegSetValueExA(hKey, "CppLearningCourse", 0, REG_SZ,
+            (BYTE*)exePath, (DWORD)(strlen(exePath) + 1));
+        RegCloseKey(hKey);
+        cout << "  [OK] Программа добавлена в автозагрузку!" << endl;
+        cout << "  Теперь она будет запускаться при включении ПК." << endl;
+    } else {
+        cout << "  [!] Не удалось добавить в автозагрузку." << endl;
+        cout << "  Попробуй запустить программу от имени администратора." << endl;
+    }
+}
+
+void removeFromStartup() {
+    HKEY hKey;
+    LONG result = RegOpenKeyExA(HKEY_CURRENT_USER,
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        0, KEY_SET_VALUE, &hKey);
+
+    if (result == ERROR_SUCCESS) {
+        RegDeleteValueA(hKey, "CppLearningCourse");
+        RegCloseKey(hKey);
+        cout << "  [OK] Программа удалена из автозагрузки." << endl;
+    }
+}
+
+bool isInStartup() {
+    HKEY hKey;
+    LONG result = RegOpenKeyExA(HKEY_CURRENT_USER,
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        0, KEY_READ, &hKey);
+
+    if (result == ERROR_SUCCESS) {
+        result = RegQueryValueExA(hKey, "CppLearningCourse", NULL, NULL, NULL, NULL);
+        RegCloseKey(hKey);
+        return (result == ERROR_SUCCESS);
+    }
+    return false;
+}
+
+static string sanitizeForShell(const string& s) {
+    string result;
+    for (char c : s) {
+        if (c == '\'') result += "\\'";
+        else result += c;
+    }
+    return result;
+}
+
+void showWindowsNotification(const string& title, const string& message) {
+    string safeTitle = sanitizeForShell(title);
+    string safeMsg = sanitizeForShell(message);
+    string psCommand = "powershell -Command \""
+        "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null; "
+        "$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02); "
+        "$textNodes = $template.GetElementsByTagName('text'); "
+        "$textNodes.Item(0).AppendChild($template.CreateTextNode('" + safeTitle + "')) > $null; "
+        "$textNodes.Item(1).AppendChild($template.CreateTextNode('" + safeMsg + "')) > $null; "
+        "$toast = [Windows.UI.Notifications.ToastNotification]::new($template); "
+        "$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('C++ Learning Course'); "
+        "$notifier.Show($toast)\"";
+
+    system(psCommand.c_str());
+}
+
+void showNotificationFallback(const string& title, const string& message) {
+    string safeTitle = sanitizeForShell(title);
+    string safeMsg = sanitizeForShell(message);
+    string cmd = "mshta \"javascript:var sh=new ActiveXObject('WScript.Shell');sh.Popup('" + safeMsg + "',10,'" + safeTitle + "',64);close()\"";
+    system(cmd.c_str());
+}
+#endif
+
+atomic<bool> g_reminderThreadRunning(false);
+
+void reminderThread(int intervalMinutes) {
+    g_reminderThreadRunning = true;
+    while (g_reminderThreadRunning) {
+        for (int i = 0; i < intervalMinutes * 60 && g_reminderThreadRunning; i++) {
+            this_thread::sleep_for(chrono::seconds(1));
+        }
+        if (!g_reminderThreadRunning) break;
+
+#ifdef _WIN32
+        showWindowsNotification(
+            "Пора учить C++!",
+            "Ты сегодня ещё не прошёл свою норму. Открой курс и пройди хотя бы 1 урок!"
+        );
+        Beep(800, 200);
+        Beep(1000, 200);
+        Beep(1200, 300);
+#endif
+    }
+}
+
+void reminderSettingsMenu() {
+    ReminderSettings rs = loadReminderSettings();
+
+    while (true) {
+        clearScreen();
+        printLine('=');
+        printCentered("НАСТРОЙКИ НАПОМИНАНИЙ И АВТОЗАГРУЗКИ");
+        printLine('=');
+
+        cout << "\n  Текущие настройки:\n";
+        cout << "  1. Напоминания: " << (rs.enabled ? "ВКЛЮЧЕНЫ" : "ВЫКЛЮЧЕНЫ") << endl;
+        cout << "  2. Интервал: каждые " << rs.intervalMinutes << " минут" << endl;
+        cout << "  3. Цель на день: " << rs.dailyGoalLessons << " уроков" << endl;
+#ifdef _WIN32
+        cout << "  4. Автозагрузка: " << (isInStartup() ? "ВКЛЮЧЕНА" : "ВЫКЛЮЧЕНА") << endl;
+        cout << "  5. Тест уведомления (проверить что работает)" << endl;
+#endif
+        cout << "  0. Назад в меню\n\n";
+        cout << "  Выбор: ";
+
+        int choice;
+        while (!(cin >> choice)) { cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n'); }
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+        switch (choice) {
+            case 1:
+                rs.enabled = !rs.enabled;
+                if (rs.enabled) {
+                    cout << "\n  [ON] Напоминания включены!" << endl;
+                    // Stop any running thread first, then start a fresh one
+                    g_reminderThreadRunning = false;
+                    this_thread::sleep_for(chrono::milliseconds(100));
+                    thread t(reminderThread, rs.intervalMinutes);
+                    t.detach();
+                } else {
+                    cout << "\n  [OFF] Напоминания выключены." << endl;
+                    g_reminderThreadRunning = false;
+                }
+                break;
+            case 2:
+                cout << "  Введи интервал в минутах (15-180): ";
+                while (!(cin >> rs.intervalMinutes)) { cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n'); }
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                if (rs.intervalMinutes < 15) rs.intervalMinutes = 15;
+                if (rs.intervalMinutes > 180) rs.intervalMinutes = 180;
+                cout << "  [OK] Интервал: каждые " << rs.intervalMinutes << " минут." << endl;
+                break;
+            case 3:
+                cout << "  Введи цель уроков в день (1-10): ";
+                while (!(cin >> rs.dailyGoalLessons)) { cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n'); }
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                if (rs.dailyGoalLessons < 1) rs.dailyGoalLessons = 1;
+                if (rs.dailyGoalLessons > 10) rs.dailyGoalLessons = 10;
+                cout << "  [OK] Цель: " << rs.dailyGoalLessons << " уроков в день." << endl;
+                break;
+#ifdef _WIN32
+            case 4:
+                if (isInStartup()) {
+                    removeFromStartup();
+                    rs.autoStartEnabled = false;
+                } else {
+                    addToStartup();
+                    rs.autoStartEnabled = true;
+                }
+                break;
+            case 5:
+                cout << "  Отправляю тестовое уведомление..." << endl;
+                showWindowsNotification("Тест уведомления!", "Если ты видишь это — уведомления работают! Пора учить C++!");
+                cout << "  [OK] Уведомление отправлено! Посмотри в правый нижний угол экрана." << endl;
+                break;
+#endif
+            case 0:
+                saveReminderSettings(rs);
+                return;
+            default:
+                cout << "  [!] Неверный выбор.\n";
+        }
+        saveReminderSettings(rs);
+        pause();
+    }
+}
+
+// ============================================================
 // MAIN MENU
 // ============================================================
 
@@ -4276,7 +4508,8 @@ void showMainMenu(const vector<Topic>& topics, Progress& progress) {
         cout << "  1. Список тем (" << topics.size() << " тем)\n"
             << "  2. Статистика прогресса\n"
             << "  3. Задать вопрос AI по C++\n"
-            << "  4. Выход\n";
+            << "  4. Выход\n"
+            << "  5. Настройки напоминаний и автозагрузка\n";
         printLine('-');
         cout << "Выбор: ";
 
@@ -4336,8 +4569,11 @@ void showMainMenu(const vector<Topic>& topics, Progress& progress) {
         case 4:
             running = false;
             break;
+        case 5:
+            reminderSettingsMenu();
+            break;
         default:
-            cout << "[!!!] Неверный выбор. Введите 1-4.\n";
+            cout << "[!!!] Неверный выбор. Введите 1-5.\n";
             pause();
         }
     }
@@ -4355,9 +4591,40 @@ int main() {
 
     srand((unsigned)time(nullptr));
 
+    // Load reminder settings and auto-start reminder thread
+    ReminderSettings rs = loadReminderSettings();
+    if (rs.enabled && !g_reminderThreadRunning) {
+        thread t(reminderThread, rs.intervalMinutes);
+        t.detach();
+    }
+
+#ifdef _WIN32
+    // If launched at startup (auto-start), show notification and motivational screen
+    if (rs.autoStartEnabled) {
+        showWindowsNotification(
+            "C++ Курс запущен!",
+            "Доброе утро! Пора учиться. Открой программу и пройди " + to_string(rs.dailyGoalLessons) + " уроков сегодня!"
+        );
+    }
+#endif
+
     // Load progress
     Progress progress = loadProgress();
     updateStreak(progress);
+
+    // If auto-started, show motivational screen
+    if (rs.autoStartEnabled) {
+        clearScreen();
+        printLine('=');
+        printCentered("ДОБРОЕ УТРО! ПОРА УЧИТЬ C++!");
+        printLine('=');
+        cout << "\n";
+        cout << "  Твой стрик: " << progress.streak << " дней подряд! Не потеряй его!\n";
+        cout << "  Сегодняшняя цель: " << rs.dailyGoalLessons << " уроков\n\n";
+        cout << "  Нажми Enter чтобы начать учиться...\n";
+        printLine('=');
+        cin.get();
+    }
 
     // Build topics
     vector<Topic> topics = createTopics();
@@ -4369,6 +4636,8 @@ int main() {
 
     // Save on exit
     saveProgress(progress);
+
+    g_reminderThreadRunning = false;
 
     clearScreen();
     printLine('=');
